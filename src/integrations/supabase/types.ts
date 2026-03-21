@@ -14,7 +14,149 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      campaigns: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          min_purchase: number
+          slug: string
+          title: string
+          updated_at: string
+          user_id: string
+          validity_days: number
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          min_purchase?: number
+          slug: string
+          title: string
+          updated_at?: string
+          user_id: string
+          validity_days?: number
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          min_purchase?: number
+          slug?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+          validity_days?: number
+        }
+        Relationships: []
+      }
+      prizes: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          id: string
+          name: string
+          percentage: number
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          id?: string
+          name: string
+          percentage: number
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          percentage?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prizes_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          business_name: string | null
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          business_name?: string | null
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          business_name?: string | null
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      scratch_entries: {
+        Row: {
+          campaign_id: string
+          customer_name: string
+          customer_whatsapp: string
+          id: string
+          prize_id: string
+          redeemed: boolean
+          scratched_at: string
+          validation_code: string
+        }
+        Insert: {
+          campaign_id: string
+          customer_name: string
+          customer_whatsapp: string
+          id?: string
+          prize_id: string
+          redeemed?: boolean
+          scratched_at?: string
+          validation_code: string
+        }
+        Update: {
+          campaign_id?: string
+          customer_name?: string
+          customer_whatsapp?: string
+          id?: string
+          prize_id?: string
+          redeemed?: boolean
+          scratched_at?: string
+          validation_code?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scratch_entries_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scratch_entries_prize_id_fkey"
+            columns: ["prize_id"]
+            isOneToOne: false
+            referencedRelation: "prizes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
