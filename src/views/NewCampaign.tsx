@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
@@ -21,7 +21,7 @@ interface PrizeInput {
 }
 
 export default function NewCampaign() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -32,6 +32,13 @@ export default function NewCampaign() {
     { name: "Refri grátis", percentage: "70" },
   ]);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      toast.error("Faça login para criar uma campanha.");
+      router.replace("/login");
+    }
+  }, [user, authLoading, router]);
 
   const totalPercentage = prizes.reduce((sum, p) => sum + (parseInt(p.percentage) || 0), 0);
 
@@ -45,7 +52,11 @@ export default function NewCampaign() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user) {
+      toast.error("Sessão inválida. Entre novamente.");
+      router.push("/login");
+      return;
+    }
 
     if (totalPercentage !== 100) {
       toast.error("A soma dos prêmios deve ser exatamente 100%.");
@@ -80,7 +91,7 @@ export default function NewCampaign() {
       .single();
 
     if (error || !campaign) {
-      toast.error("Erro ao criar campanha.");
+      toast.error(error?.message ?? "Erro ao criar campanha.");
       setLoading(false);
       return;
     }
@@ -95,13 +106,25 @@ export default function NewCampaign() {
     setLoading(false);
 
     if (prizeError) {
-      toast.error("Erro ao criar prêmios.");
+      toast.error(prizeError.message ?? "Erro ao criar prêmios.");
       return;
     }
 
     toast.success("Campanha criada com sucesso!");
     router.push("/dashboard");
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-pulse text-muted-foreground">Carregando...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -176,7 +199,7 @@ export default function NewCampaign() {
             </Button>
           </div>
 
-          <Button type="submit" className="w-full" disabled={loading || totalPercentage !== 100}>
+          <Button type="submit" className="w-full" disabled={loading || totalPercentage !== 100 || !user}>
             {loading ? "Criando..." : "Criar campanha"}
           </Button>
         </form>

@@ -7,16 +7,34 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Star, Gift, PartyPopper } from "lucide-react";
+import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Prize = Tables<"prizes">;
+
+/** Máscara (XX) XXXXX-XXXX (celular) ou (XX) XXXX-XXXX (fixo). */
+function maskBrazilPhone(input: string): string {
+  const d = input.replace(/\D/g, "").slice(0, 11);
+  if (d.length === 0) return "";
+  const ddd = d.slice(0, 2);
+  if (d.length <= 2) return `(${ddd}`;
+  const rest = d.slice(2);
+  if (rest[0] === "9") {
+    if (rest.length <= 5) return `(${ddd}) ${rest}`;
+    return `(${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`;
+  }
+  if (rest.length <= 4) return `(${ddd}) ${rest}`;
+  return `(${ddd}) ${rest.slice(0, 4)}-${rest.slice(4)}`;
+}
 
 export default function ScratchCard() {
   const params = useParams<{ slug?: string }>();
   const slug = typeof params.slug === "string" ? params.slug : undefined;
   const [campaign, setCampaign] = useState<Tables<"campaigns"> | null>(null);
   const [prizes, setPrizes] = useState<Prize[]>([]);
-  const [step, setStep] = useState<"loading" | "form" | "scratch" | "result" | "error">("loading");
+  const [step, setStep] = useState<
+    "loading" | "form" | "scratch" | "result" | "error"
+  >("loading");
   const [name, setName] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [wonPrize, setWonPrize] = useState<Prize | null>(null);
@@ -43,7 +61,10 @@ export default function ScratchCard() {
       }
       setCampaign(camp);
 
-      const { data: prizeData } = await supabase.from("prizes").select("*").eq("campaign_id", camp.id);
+      const { data: prizeData } = await supabase
+        .from("prizes")
+        .select("*")
+        .eq("campaign_id", camp.id);
       setPrizes(prizeData || []);
       setStep("form");
     };
@@ -67,11 +88,16 @@ export default function ScratchCard() {
     const prize = pickPrize(prizes);
     const code = Math.random().toString(36).slice(2, 8).toUpperCase();
 
+    const whatsappDigits = whatsapp.replace(/\D/g, "");
+    if (whatsappDigits.length < 10 || whatsappDigits.length > 11) {
+      toast.error("Informe um WhatsApp válido com DDD (10 ou 11 dígitos).");
+      return;
+    }
     const { error } = await supabase.from("scratch_entries").insert({
       campaign_id: campaign.id,
       prize_id: prize.id,
       customer_name: name.trim(),
-      customer_whatsapp: whatsapp.trim(),
+      customer_whatsapp: whatsappDigits,
       validation_code: code,
     });
 
@@ -121,7 +147,11 @@ export default function ScratchCard() {
     ctx.fillText("🎁 RASPE AQUI", rect.width / 2, rect.height / 2 - 12);
     ctx.font = "13px Inter, sans-serif";
     ctx.fillStyle = "rgba(255,255,255,0.7)";
-    ctx.fillText("Passe o dedo para revelar", rect.width / 2, rect.height / 2 + 16);
+    ctx.fillText(
+      "Passe o dedo para revelar",
+      rect.width / 2,
+      rect.height / 2 + 16,
+    );
   }, []);
 
   useEffect(() => {
@@ -137,8 +167,8 @@ export default function ScratchCard() {
     if (!ctx) return;
 
     const rect = canvas.getBoundingClientRect();
-    const cx = (x - rect.left);
-    const cy = (y - rect.top);
+    const cx = x - rect.left;
+    const cy = y - rect.top;
 
     ctx.globalCompositeOperation = "destination-out";
     ctx.beginPath();
@@ -152,8 +182,12 @@ export default function ScratchCard() {
     }
   };
 
-  const handlePointerDown = () => { isDrawing.current = true; };
-  const handlePointerUp = () => { isDrawing.current = false; };
+  const handlePointerDown = () => {
+    isDrawing.current = true;
+  };
+  const handlePointerUp = () => {
+    isDrawing.current = false;
+  };
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!isDrawing.current) return;
     scratch(e.clientX, e.clientY);
@@ -171,8 +205,12 @@ export default function ScratchCard() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="text-center">
-          <h1 className="font-display text-xl font-bold text-foreground mb-2">Campanha não encontrada</h1>
-          <p className="text-sm text-muted-foreground">Esta promoção pode ter expirado ou o link é inválido.</p>
+          <h1 className="font-display text-xl font-bold text-foreground mb-2">
+            Campanha não encontrada
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Esta promoção pode ter expirado ou o link é inválido.
+          </p>
         </div>
       </div>
     );
@@ -186,7 +224,9 @@ export default function ScratchCard() {
           <div className="w-8 h-8 rounded-lg bg-gradient-hero flex items-center justify-center">
             <Star className="w-4 h-4 text-primary-foreground" />
           </div>
-          <span className="font-display text-lg font-bold text-foreground">RaspaZap</span>
+          <span className="font-display text-lg font-bold text-foreground">
+            RaspaZap
+          </span>
         </div>
 
         {step === "form" && campaign && (
@@ -195,18 +235,42 @@ export default function ScratchCard() {
               <div className="w-14 h-14 rounded-2xl bg-gradient-gold flex items-center justify-center mx-auto mb-4">
                 <Gift className="w-7 h-7 text-secondary-foreground" />
               </div>
-              <h1 className="font-display text-2xl font-bold text-foreground mb-2">{campaign.title}</h1>
-              {campaign.description && <p className="text-sm text-muted-foreground">{campaign.description}</p>}
+              <h1 className="font-display text-2xl font-bold text-foreground mb-2">
+                {campaign.title}
+              </h1>
+              {campaign.description && (
+                <p className="text-sm text-muted-foreground">
+                  {campaign.description}
+                </p>
+              )}
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <Label htmlFor="name">Seu nome</Label>
-                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Como podemos te chamar?" required className="mt-1.5" />
+                <Input
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Como podemos te chamar?"
+                  required
+                  className="mt-1.5"
+                />
               </div>
               <div>
                 <Label htmlFor="whatsapp">WhatsApp</Label>
-                <Input id="whatsapp" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="(11) 99999-9999" required className="mt-1.5" />
+                <Input
+                  id="whatsapp"
+                  type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel-national"
+                  maxLength={15}
+                  value={whatsapp}
+                  onChange={(e) => setWhatsapp(maskBrazilPhone(e.target.value))}
+                  placeholder="(11) 99999-9999"
+                  required
+                  className="mt-1.5"
+                />
               </div>
               <Button type="submit" className="w-full text-base" size="lg">
                 🎁 Liberar minha raspadinha
@@ -217,14 +281,23 @@ export default function ScratchCard() {
 
         {step === "scratch" && (
           <div className="animate-fade-up text-center">
-            <h2 className="font-display text-xl font-bold text-foreground mb-2">Sua raspadinha está pronta!</h2>
-            <p className="text-sm text-muted-foreground mb-6">Raspe a área dourada para revelar seu prêmio.</p>
+            <h2 className="font-display text-xl font-bold text-foreground mb-2">
+              Sua raspadinha está pronta!
+            </h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              Raspe a área dourada para revelar seu prêmio.
+            </p>
 
-            <div className="relative rounded-2xl overflow-hidden scratch-shadow mx-auto" style={{ width: 280, height: 180 }}>
+            <div
+              className="relative rounded-2xl overflow-hidden scratch-shadow mx-auto"
+              style={{ width: 280, height: 180 }}
+            >
               {/* Prize behind */}
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-card">
                 <PartyPopper className="w-8 h-8 text-accent mb-2" />
-                <p className="font-display text-lg font-bold text-foreground">{wonPrize?.name}</p>
+                <p className="font-display text-lg font-bold text-foreground">
+                  {wonPrize?.name}
+                </p>
                 <p className="text-xs text-muted-foreground mt-1">Parabéns!</p>
               </div>
               {/* Scratch layer */}
@@ -245,27 +318,51 @@ export default function ScratchCard() {
             <div className="w-16 h-16 rounded-full bg-gradient-gold flex items-center justify-center mx-auto mb-4">
               <PartyPopper className="w-8 h-8 text-secondary-foreground" />
             </div>
-            <h2 className="font-display text-2xl font-bold text-foreground mb-2">Parabéns! 🎉</h2>
-            <p className="text-lg text-foreground font-medium mb-4">Você ganhou: <span className="text-gradient-gold font-display font-bold">{wonPrize.name}</span></p>
+            <h2 className="font-display text-2xl font-bold text-foreground mb-2">
+              Parabéns! 🎉
+            </h2>
+            <p className="text-lg text-foreground font-medium mb-4">
+              Você ganhou:{" "}
+              <span className="text-gradient-gold font-display font-bold">
+                {wonPrize.name}
+              </span>
+            </p>
 
             <div className="bg-card rounded-xl p-5 card-elevated mb-6 text-left space-y-3">
               <div>
-                <p className="text-xs text-muted-foreground mb-1">Código de validação</p>
-                <p className="font-display text-2xl font-bold text-foreground tracking-wider tabular-nums">{validationCode}</p>
+                <p className="text-xs text-muted-foreground mb-1">
+                  Código de validação
+                </p>
+                <p className="font-display text-2xl font-bold text-foreground tracking-wider tabular-nums">
+                  {validationCode}
+                </p>
               </div>
               {campaign && (
                 <>
                   <div className="border-t border-border pt-3">
-                    <p className="text-xs text-muted-foreground">Compra mínima: <span className="text-foreground font-medium">R$ {Number(campaign.min_purchase).toFixed(2)}</span></p>
+                    <p className="text-xs text-muted-foreground">
+                      Compra mínima:{" "}
+                      <span className="text-foreground font-medium">
+                        R$ {Number(campaign.min_purchase).toFixed(2)}
+                      </span>
+                    </p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Validade: <span className="text-foreground font-medium">{campaign.validity_days} dias</span></p>
+                    <p className="text-xs text-muted-foreground">
+                      Validade:{" "}
+                      <span className="text-foreground font-medium">
+                        {campaign.validity_days} dias
+                      </span>
+                    </p>
                   </div>
                 </>
               )}
             </div>
 
-            <p className="text-xs text-muted-foreground">Apresente este código no momento da compra para resgatar seu prêmio.</p>
+            <p className="text-xs text-muted-foreground">
+              Apresente este código no momento da compra para resgatar seu
+              prêmio.
+            </p>
           </div>
         )}
       </div>
