@@ -1,4 +1,6 @@
-import { Link } from "react-router-dom";
+"use client";
+
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Gift, Users, BarChart3, Zap, ArrowRight, Star } from "lucide-react";
 import { useEffect, useRef } from "react";
@@ -68,7 +70,7 @@ export default function Index() {
       {/* Nav */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
         <div className="container flex items-center justify-between h-16">
-          <Link to="/" className="font-display text-xl font-bold text-foreground flex items-center gap-2">
+          <Link href="/" className="font-display text-xl font-bold text-foreground flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-gradient-hero flex items-center justify-center">
               <Star className="w-4 h-4 text-primary-foreground" />
             </div>
@@ -76,10 +78,10 @@ export default function Index() {
           </Link>
           <div className="flex items-center gap-3">
             <Button variant="ghost" asChild>
-              <Link to="/login">Entrar</Link>
+              <Link href="/login">Entrar</Link>
             </Button>
             <Button asChild>
-              <Link to="/register">Começar grátis</Link>
+              <Link href="/register">Começar grátis</Link>
             </Button>
           </div>
         </div>
@@ -108,13 +110,13 @@ export default function Index() {
             <RevealSection delay="0.3s">
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <Button size="lg" asChild className="text-base px-8">
-                  <Link to="/register">
+                  <Link href="/register">
                     Criar minha campanha
                     <ArrowRight className="w-4 h-4 ml-1" />
                   </Link>
                 </Button>
                 <Button size="lg" variant="outline" asChild className="text-base px-8">
-                  <Link to="/demo">Ver demonstração</Link>
+                  <Link href="/demo">Ver demonstração</Link>
                 </Button>
               </div>
             </RevealSection>
@@ -214,7 +216,7 @@ export default function Index() {
                 ))}
               </ul>
               <Button size="lg" className="w-full text-base" asChild>
-                <Link to="/register">Começar grátis</Link>
+                <Link href="/register">Começar grátis</Link>
               </Button>
             </div>
           </RevealSection>

@@ -1,5 +1,7 @@
+"use client";
+
 import { useEffect, useState, useRef, useCallback } from "react";
-import { useParams } from "react-router-dom";
+import { useParams } from "next/navigation";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +12,8 @@ import type { Tables } from "@/integrations/supabase/types";
 type Prize = Tables<"prizes">;
 
 export default function ScratchCard() {
-  const { slug } = useParams<{ slug: string }>();
+  const params = useParams<{ slug?: string }>();
+  const slug = typeof params.slug === "string" ? params.slug : undefined;
   const [campaign, setCampaign] = useState<Tables<"campaigns"> | null>(null);
   const [prizes, setPrizes] = useState<Prize[]>([]);
   const [step, setStep] = useState<"loading" | "form" | "scratch" | "result" | "error">("loading");

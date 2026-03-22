@@ -1,5 +1,8 @@
+"use client";
+
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -11,14 +14,14 @@ type Campaign = Tables<"campaigns">;
 
 export default function Dashboard() {
   const { user, loading: authLoading, signOut } = useAuth();
-  const navigate = useNavigate();
+  const router = useRouter();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [entryCounts, setEntryCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    if (!authLoading && !user) navigate("/login");
-  }, [user, authLoading, navigate]);
+    if (!authLoading && !user) router.replace("/login");
+  }, [user, authLoading, router]);
 
   useEffect(() => {
     if (!user) return;
@@ -28,12 +31,13 @@ export default function Dashboard() {
         .select("*")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
-      setCampaigns(data || []);
+      const rows = (data || []) as Campaign[];
+      setCampaigns(rows);
 
       // Get entry counts for each campaign
-      if (data && data.length > 0) {
+      if (rows.length > 0) {
         const counts: Record<string, number> = {};
-        for (const c of data) {
+        for (const c of rows) {
           const { count } = await supabase
             .from("scratch_entries")
             .select("*", { count: "exact", head: true })
@@ -64,7 +68,7 @@ export default function Dashboard() {
     <div className="min-h-screen bg-background">
       <nav className="border-b border-border bg-card">
         <div className="container flex items-center justify-between h-16">
-          <Link to="/dashboard" className="font-display text-lg font-bold text-foreground flex items-center gap-2">
+          <Link href="/dashboard" className="font-display text-lg font-bold text-foreground flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-gradient-hero flex items-center justify-center">
               <Star className="w-3.5 h-3.5 text-primary-foreground" />
             </div>
@@ -84,7 +88,7 @@ export default function Dashboard() {
             <p className="text-sm text-muted-foreground mt-1">Gerencie suas raspadinhas premiadas.</p>
           </div>
           <Button asChild>
-            <Link to="/dashboard/new">
+            <Link href="/dashboard/new">
               <Plus className="w-4 h-4 mr-1" />
               Nova Campanha
             </Link>
@@ -99,7 +103,7 @@ export default function Dashboard() {
             <h2 className="font-display text-lg font-semibold text-foreground mb-2">Nenhuma campanha ainda</h2>
             <p className="text-sm text-muted-foreground mb-6">Crie sua primeira raspadinha premiada e comece a fidelizar clientes!</p>
             <Button asChild>
-              <Link to="/dashboard/new">
+              <Link href="/dashboard/new">
                 <Plus className="w-4 h-4 mr-1" />
                 Criar campanha
               </Link>
@@ -133,7 +137,7 @@ export default function Dashboard() {
                       Link
                     </Button>
                     <Button variant="ghost" size="sm" asChild>
-                      <Link to={`/dashboard/campaign/${c.id}`}>
+                      <Link href={`/dashboard/campaign/${c.id}`}>
                         <ExternalLink className="w-3.5 h-3.5" />
                       </Link>
                     </Button>

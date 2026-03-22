@@ -1,5 +1,8 @@
+"use client";
+
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import Link from "next/link";
+import { useParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -10,7 +13,8 @@ import type { Tables } from "@/integrations/supabase/types";
 type ScratchEntry = Tables<"scratch_entries"> & { prize_name?: string };
 
 export default function CampaignDetail() {
-  const { id } = useParams<{ id: string }>();
+  const params = useParams<{ id: string }>();
+  const id = typeof params.id === "string" ? params.id : Array.isArray(params.id) ? params.id[0] : undefined;
   const { user } = useAuth();
   const [campaign, setCampaign] = useState<Tables<"campaigns"> | null>(null);
   const [prizes, setPrizes] = useState<Tables<"prizes">[]>([]);
@@ -28,9 +32,11 @@ export default function CampaignDetail() {
       setCampaign(campRes.data);
       setPrizes(prizeRes.data || []);
 
-      const prizeMap = Object.fromEntries((prizeRes.data || []).map((p) => [p.id, p.name]));
+      const prizesList = (prizeRes.data || []) as Tables<"prizes">[];
+      const prizeMap = Object.fromEntries(prizesList.map((p) => [p.id, p.name]));
+      const entriesRaw = (entryRes.data || []) as Tables<"scratch_entries">[];
       setEntries(
-        (entryRes.data || []).map((e) => ({ ...e, prize_name: prizeMap[e.prize_id] || "—" }))
+        entriesRaw.map((e) => ({ ...e, prize_name: prizeMap[e.prize_id] || "—" }))
       );
       setLoading(false);
     };
@@ -63,7 +69,7 @@ export default function CampaignDetail() {
   return (
     <div className="min-h-screen bg-background">
       <div className="container max-w-2xl py-8">
-        <Link to="/dashboard" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-8 transition-colors">
+        <Link href="/dashboard" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-8 transition-colors">
           <ArrowLeft className="w-4 h-4" />
           Voltar
         </Link>

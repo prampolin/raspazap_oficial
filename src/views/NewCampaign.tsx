@@ -1,5 +1,8 @@
+"use client";
+
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -7,6 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import type { Database } from "@/integrations/supabase/types";
+
+type CampaignInsert = Database["public"]["Tables"]["campaigns"]["Insert"];
+type PrizeInsert = Database["public"]["Tables"]["prizes"]["Insert"];
 
 interface PrizeInput {
   name: string;
@@ -15,7 +22,7 @@ interface PrizeInput {
 
 export default function NewCampaign() {
   const { user } = useAuth();
-  const navigate = useNavigate();
+  const router = useRouter();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [minPurchase, setMinPurchase] = useState("50");
@@ -58,16 +65,17 @@ export default function NewCampaign() {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "") + "-" + Math.random().toString(36).slice(2, 7);
 
+    const payload: CampaignInsert = {
+      user_id: user.id,
+      title: title.trim(),
+      description: description.trim() || null,
+      min_purchase: parseFloat(minPurchase) || 0,
+      validity_days: parseInt(validityDays) || 7,
+      slug,
+    };
     const { data: campaign, error } = await supabase
       .from("campaigns")
-      .insert({
-        user_id: user.id,
-        title: title.trim(),
-        description: description.trim() || null,
-        min_purchase: parseFloat(minPurchase) || 0,
-        validity_days: parseInt(validityDays) || 7,
-        slug,
-      })
+      .insert(payload)
       .select()
       .single();
 
@@ -77,7 +85,7 @@ export default function NewCampaign() {
       return;
     }
 
-    const prizesData = prizes.map((p) => ({
+    const prizesData: PrizeInsert[] = prizes.map((p) => ({
       campaign_id: campaign.id,
       name: p.name.trim(),
       percentage: parseInt(p.percentage),
@@ -92,13 +100,13 @@ export default function NewCampaign() {
     }
 
     toast.success("Campanha criada com sucesso!");
-    navigate("/dashboard");
+    router.push("/dashboard");
   };
 
   return (
     <div className="min-h-screen bg-background">
       <div className="container max-w-lg py-8">
-        <Link to="/dashboard" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-8 transition-colors">
+        <Link href="/dashboard" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-8 transition-colors">
           <ArrowLeft className="w-4 h-4" />
           Voltar
         </Link>
