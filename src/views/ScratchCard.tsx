@@ -6,7 +6,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Star, Gift, PartyPopper } from "lucide-react";
+import { Copy, Gift, PartyPopper } from "lucide-react";
+import { Logo } from "@/components/Logo";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -102,6 +103,14 @@ export default function ScratchCard() {
     });
 
     if (error) {
+      const msg = error.message ?? "";
+      if (msg.includes("Limite mensal")) {
+        toast.error(
+          "Este estabelecimento atingiu o limite mensal de raspadinhas do plano.",
+        );
+        return;
+      }
+      toast.error("Não foi possível registrar sua participação. Tente novamente.");
       setStep("error");
       return;
     }
@@ -219,14 +228,8 @@ export default function ScratchCard() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <div className="w-8 h-8 rounded-lg bg-gradient-hero flex items-center justify-center">
-            <Star className="w-4 h-4 text-primary-foreground" />
-          </div>
-          <span className="font-display text-lg font-bold text-foreground">
-            RaspaZap
-          </span>
+        <div className="flex justify-center mb-8 font-display">
+          <Logo />
         </div>
 
         {step === "form" && campaign && (
@@ -330,12 +333,27 @@ export default function ScratchCard() {
 
             <div className="bg-card rounded-xl p-5 card-elevated mb-6 text-left space-y-3">
               <div>
-                <p className="text-xs text-muted-foreground mb-1">
+                <p className="text-xs text-muted-foreground mb-2">
                   Código de validação
                 </p>
-                <p className="font-display text-2xl font-bold text-foreground tracking-wider tabular-nums">
-                  {validationCode}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="font-display text-2xl font-bold text-foreground tracking-wider tabular-nums min-w-0 break-all">
+                    {validationCode}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="shrink-0"
+                    aria-label="Copiar código de validação"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(validationCode);
+                      toast.success("Código copiado!");
+                    }}
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
               {campaign && (
                 <>

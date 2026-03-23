@@ -18,6 +18,9 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
 });
 
+/** sessionStorage: evita que telas com guard de auth redirecionem para /login durante o logout (indo para /). */
+export const SIGN_OUT_SESSION_KEY = "raspaZap_signing_out";
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -39,8 +42,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
+  /** Limpa flag de logout após carregar qualquer página (evita ficar preso após redirect). */
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      sessionStorage.removeItem(SIGN_OUT_SESSION_KEY);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   const signOut = async () => {
+    try {
+      sessionStorage.setItem(SIGN_OUT_SESSION_KEY, "1");
+    } catch {
+      /* ignore */
+    }
     await supabase.auth.signOut();
+    if (typeof window !== "undefined") {
+      window.location.replace("/");
+    }
   };
 
   return (

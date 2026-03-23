@@ -89,23 +89,59 @@ export type Database = {
         Row: {
           business_name: string | null
           created_at: string
+          current_period_end: string | null
           id: string
+          subscription_plan: string
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          subscription_status: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           business_name?: string | null
           created_at?: string
+          current_period_end?: string | null
           id?: string
+          subscription_plan?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_status?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           business_name?: string | null
           created_at?: string
+          current_period_end?: string | null
           id?: string
+          subscription_plan?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_status?: string | null
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      site_legal: {
+        Row: {
+          id: number
+          privacy_policy: string
+          terms_of_use: string
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          privacy_policy?: string
+          terms_of_use?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          privacy_policy?: string
+          terms_of_use?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -162,7 +198,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_my_monthly_scratch_usage: {
+        Args: Record<string, never>
+        Returns: number
+      }
+      mark_scratch_entry_redeemed: {
+        Args: { p_validation_code: string }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never

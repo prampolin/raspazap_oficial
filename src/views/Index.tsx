@@ -1,9 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Gift, Users, BarChart3, Zap, ArrowRight, Star } from "lucide-react";
+import { Gift, Users, BarChart3, Zap, ArrowRight, Check } from "lucide-react";
+import { Logo } from "@/components/Logo";
 import { useEffect, useRef } from "react";
+import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
+import { PLAN_LABELS, PLAN_LIMITS } from "@/lib/plans";
 
 const features = [
   {
@@ -64,21 +69,49 @@ function RevealSection({ children, className = "", delay = "" }: { children: Rea
   );
 }
 
+async function postCheckout(plan: "basic"): Promise<string | null> {
+  const res = await fetch("/api/stripe/checkout", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ plan }),
+  });
+  const data = (await res.json()) as { url?: string; error?: string };
+  if (!res.ok) {
+    throw new Error(data.error ?? "Erro ao iniciar checkout");
+  }
+  return data.url ?? null;
+}
+
 export default function Index() {
+  const { user } = useAuth();
+  const router = useRouter();
+  const loginHref = user ? "/dashboard" : "/login";
+
+  const startCheckout = async (plan: "basic") => {
+    if (!user) {
+      router.push("/login?redirect=/dashboard");
+      return;
+    }
+    try {
+      const url = await postCheckout(plan);
+      if (url) window.location.href = url;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao iniciar checkout");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Nav */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
         <div className="container flex items-center justify-between h-16">
-          <Link href="/" className="font-display text-xl font-bold text-foreground flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-hero flex items-center justify-center">
-              <Star className="w-4 h-4 text-primary-foreground" />
-            </div>
-            RaspaZap
+          <Link href="/" className="font-display">
+            <Logo />
           </Link>
           <div className="flex items-center gap-3">
             <Button variant="ghost" asChild>
-              <Link href="/login">Entrar</Link>
+              <Link href={loginHref}>Entrar</Link>
             </Button>
             <Button asChild>
               <Link href="/register">Começar grátis</Link>
@@ -192,45 +225,100 @@ export default function Index() {
       {/* Pricing */}
       <section className="py-20 bg-muted/50">
         <div className="container">
-          <RevealSection className="max-w-md mx-auto">
-            <div className="bg-card rounded-2xl p-8 card-elevated text-center">
-              <div className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold mb-4">
-                PLANO PRO
-              </div>
-              <div className="mb-4">
-                <span className="font-display text-5xl font-bold text-foreground">R$ 97</span>
-                <span className="text-2xl text-muted-foreground">,90</span>
-                <span className="text-muted-foreground">/mês</span>
-              </div>
-              <p className="text-sm text-muted-foreground mb-6">
-                Até 5.000 raspadinhas por mês. Comece grátis com 50 raspadinhas!
-              </p>
-              <ul className="text-sm text-left space-y-3 mb-8">
-                {["Campanhas ilimitadas", "Captura de leads", "QR Codes ilimitados", "Relatórios completos", "Suporte prioritário"].map((item) => (
-                  <li key={item} className="flex items-center gap-2 text-foreground">
-                    <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <Star className="w-3 h-3 text-primary" />
-                    </div>
-                    {item}
-                  </li>
-                ))}
-              </ul>
-              <Button size="lg" className="w-full text-base" asChild>
-                <Link href="/register">Começar grátis</Link>
-              </Button>
-            </div>
+          <RevealSection className="text-center mb-12">
+            <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground mb-4">
+              Planos para cada etapa do seu negócio
+            </h2>
+            <p className="text-muted-foreground max-w-lg mx-auto text-sm">
+              Limites de raspadinhas por mês (fuso de São Paulo). Plano Básico com cobrança via Stripe.
+            </p>
           </RevealSection>
+          <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+            <RevealSection>
+              <div className="bg-card rounded-2xl p-8 card-elevated h-full flex flex-col text-center">
+                <div className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-muted text-muted-foreground text-xs font-semibold mb-4 mx-auto">
+                  {PLAN_LABELS.free}
+                </div>
+                <div className="mb-4">
+                  <span className="font-display text-4xl font-bold text-foreground">R$ 0</span>
+                  <span className="text-muted-foreground">/mês</span>
+                </div>
+                <p className="text-sm text-muted-foreground mb-6">
+                  Até {PLAN_LIMITS.free.toLocaleString("pt-BR")} raspadinhas por mês para testar a plataforma.
+                </p>
+                <ul className="text-sm text-left space-y-3 mb-8 flex-1">
+                  {["1 campanha no plano grátis", "Captura de leads (nome + WhatsApp)", "Link único por campanha", "Painel de campanhas"].map((item) => (
+                    <li key={item} className="flex items-center gap-2 text-foreground">
+                      <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <Check className="w-3 h-3 text-primary" />
+                      </div>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+                <Button size="lg" className="w-full text-base" asChild>
+                  <Link href="/register">Começar grátis</Link>
+                </Button>
+              </div>
+            </RevealSection>
+            <RevealSection delay="0.08s">
+              <div className="bg-card rounded-2xl p-8 card-elevated h-full flex flex-col text-center ring-2 ring-primary/30">
+                <div className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold mb-4 mx-auto">
+                  {PLAN_LABELS.basic}
+                </div>
+                <div className="mb-4">
+                  <span className="font-display text-4xl font-bold text-foreground">R$ 49</span>
+                  <span className="text-xl text-muted-foreground">,90</span>
+                  <span className="text-muted-foreground">/mês</span>
+                </div>
+                <p className="text-sm text-muted-foreground mb-6">
+                  Até {PLAN_LIMITS.basic.toLocaleString("pt-BR")} raspadinhas por mês — ideal para operação em crescimento.
+                </p>
+                <ul className="text-sm text-left space-y-3 mb-8 flex-1">
+                  {["Tudo do Grátis", "Limite ampliado de raspadinhas", "Relatórios e leads no painel", "Suporte por e-mail"].map((item) => (
+                    <li key={item} className="flex items-center gap-2 text-foreground">
+                      <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <Check className="w-3 h-3 text-primary" />
+                      </div>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+                <Button size="lg" variant="default" className="w-full text-base" type="button" onClick={() => startCheckout("basic")}>
+                  Assinar Básico
+                </Button>
+              </div>
+            </RevealSection>
+            {/* Plano PRO temporariamente oculto — reative o bloco abaixo quando for ofertar de novo.
+            <RevealSection delay="0.16s">
+              <div className="bg-card rounded-2xl p-8 card-elevated h-full flex flex-col text-center">
+                ...
+              </div>
+            </RevealSection>
+            */}
+          </div>
         </div>
       </section>
 
       {/* Footer */}
       <footer className="py-12 border-t border-border">
         <div className="container text-center">
-          <div className="font-display text-lg font-bold text-foreground flex items-center justify-center gap-2 mb-4">
-            <div className="w-6 h-6 rounded-md bg-gradient-hero flex items-center justify-center">
-              <Star className="w-3 h-3 text-primary-foreground" />
-            </div>
-            RaspaZap
+          <div className="flex justify-center mb-4 font-display">
+            <Logo />
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mb-4 text-sm">
+            <Link
+              href="/termos"
+              className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline transition-colors"
+            >
+              Termos de uso
+            </Link>
+            <Link
+              href="/privacidade"
+              className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline transition-colors"
+            >
+              Política de privacidade
+            </Link>
           </div>
           <p className="text-sm text-muted-foreground">
             © {new Date().getFullYear()} RaspaZap. Fidelização gamificada para seu negócio.

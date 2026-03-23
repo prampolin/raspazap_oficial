@@ -5,8 +5,19 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Copy, Users, Gift, QrCode } from "lucide-react";
+import { ArrowLeft, Copy, Users, Gift, QrCode, Power } from "lucide-react";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -20,6 +31,7 @@ export default function CampaignDetail() {
   const [prizes, setPrizes] = useState<Tables<"prizes">[]>([]);
   const [entries, setEntries] = useState<ScratchEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [toggleLoading, setToggleLoading] = useState(false);
 
   useEffect(() => {
     if (!id || !user) return;
@@ -50,6 +62,27 @@ export default function CampaignDetail() {
     toast.success("Link copiado!");
   };
 
+  const setCampaignActive = async (next: boolean) => {
+    if (!id || !user) return;
+    setToggleLoading(true);
+    const { data, error } = await supabase
+      .from("campaigns")
+      .update({ is_active: next })
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .select()
+      .single();
+    setToggleLoading(false);
+    if (error) {
+      toast.error(error.message ?? "Não foi possível atualizar a campanha.");
+      return;
+    }
+    if (data) {
+      setCampaign(data);
+      toast.success(next ? "Campanha reativada." : "Campanha desativada. O link público deixou de funcionar.");
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -74,15 +107,57 @@ export default function CampaignDetail() {
           Voltar
         </Link>
 
-        <div className="flex items-start justify-between mb-8">
-          <div>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-8">
+          <div className="min-w-0 flex-1">
             <h1 className="font-display text-2xl font-bold text-foreground">{campaign.title}</h1>
             {campaign.description && <p className="text-sm text-muted-foreground mt-1">{campaign.description}</p>}
           </div>
-          <span className={`px-3 py-1 rounded-full text-xs font-medium ${campaign.is_active ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
-            {campaign.is_active ? "Ativa" : "Inativa"}
-          </span>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <span className={`px-3 py-1 rounded-full text-xs font-medium ${campaign.is_active ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+              {campaign.is_active ? "Ativa" : "Inativa"}
+            </span>
+            {campaign.is_active ? (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button type="button" variant="outline" size="sm" disabled={toggleLoading}>
+                    <Power className="w-3.5 h-3.5 mr-1" />
+                    Desativar campanha
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Desativar campanha?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      O link público e o QR Code deixarão de aceitar novas raspadinhas. Você pode reativar quando
+                      quiser.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                      type="button"
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={() => void setCampaignActive(false)}
+                    >
+                      Desativar
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            ) : (
+              <Button type="button" size="sm" disabled={toggleLoading} onClick={() => void setCampaignActive(true)}>
+                <Power className="w-3.5 h-3.5 mr-1" />
+                Reativar campanha
+              </Button>
+            )}
+          </div>
         </div>
+
+        {!campaign.is_active && (
+          <p className="text-sm text-amber-700 dark:text-amber-500 bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-3 mb-6">
+            Esta campanha está inativa: o link público não funciona até você reativar.
+          </p>
+        )}
 
         {/* Link & QR */}
         <div className="bg-card rounded-xl p-5 card-elevated mb-6">

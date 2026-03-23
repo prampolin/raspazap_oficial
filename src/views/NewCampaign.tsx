@@ -8,9 +8,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Lock } from "lucide-react";
 import { toast } from "sonner";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database, Tables } from "@/integrations/supabase/types";
+import { maxCampaignsForPlan, PLAN_LABELS, PLAN_LIMITS, type PlanId } from "@/lib/plans";
 
 type CampaignInsert = Database["public"]["Tables"]["campaigns"]["Insert"];
 type PrizeInsert = Database["public"]["Tables"]["prizes"]["Insert"];
@@ -32,6 +33,11 @@ export default function NewCampaign() {
     { name: "Refri grátis", percentage: "70" },
   ]);
   const [loading, setLoading] = useState(false);
+  const [planGate, setPlanGate] = useState<{
+    profile: Tables<"profiles"> | null;
+    campaignCount: number;
+    ready: boolean;
+  }>({ profile: null, campaignCount: 0, ready: false });
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -40,7 +46,34 @@ export default function NewCampaign() {
     }
   }, [user, authLoading, router]);
 
+  useEffect(() => {
+    if (!user) return;
+    const load = async () => {
+      const [{ data: profileRow }, { count }] = await Promise.all([
+        supabase.from("profiles").select("*").eq("user_id", user.id).maybeSingle(),
+        supabase
+          .from("campaigns")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user.id),
+      ]);
+      setPlanGate({
+        profile: profileRow as Tables<"profiles"> | null,
+        campaignCount: count ?? 0,
+        ready: true,
+      });
+    };
+    load();
+  }, [user]);
+
   const totalPercentage = prizes.reduce((sum, p) => sum + (parseInt(p.percentage) || 0), 0);
+
+  const planId = (planGate.profile?.subscription_plan ?? "free") as PlanId;
+  const isFreePlan = planId === "free";
+  const cap = maxCampaignsForPlan(planGate.profile?.subscription_plan);
+
+  useEffect(() => {
+    if (isFreePlan) setValidityDays("7");
+  }, [isFreePlan]);
 
   const addPrize = () => setPrizes([...prizes, { name: "", percentage: "" }]);
   const removePrize = (i: number) => setPrizes(prizes.filter((_, idx) => idx !== i));
@@ -81,7 +114,7 @@ export default function NewCampaign() {
       title: title.trim(),
       description: description.trim() || null,
       min_purchase: parseFloat(minPurchase) || 0,
-      validity_days: parseInt(validityDays) || 7,
+      validity_days: isFreePlan ? 7 : Math.max(1, parseInt(validityDays, 10) || 7),
       slug,
     };
     const { data: campaign, error } = await supabase
@@ -91,7 +124,12 @@ export default function NewCampaign() {
       .single();
 
     if (error || !campaign) {
-      toast.error(error?.message ?? "Erro ao criar campanha.");
+      const msg = error?.message ?? "";
+      if (msg.includes("FREE_PLAN_CAMPAIGN_LIMIT") || msg.includes("plano grátis permite apenas 1")) {
+        toast.error("No plano grátis você pode ter apenas 1 campanha. Faça upgrade para criar mais.");
+      } else {
+        toast.error(msg || "Erro ao criar campanha.");
+      }
       setLoading(false);
       return;
     }
@@ -114,7 +152,10 @@ export default function NewCampaign() {
     router.push("/dashboard");
   };
 
-  if (authLoading) {
+  const blockedByPlan =
+    planGate.ready && cap !== null && planGate.campaignCount >= cap;
+
+  if (authLoading || !planGate.ready) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Carregando...</div>
@@ -124,6 +165,33 @@ export default function NewCampaign() {
 
   if (!user) {
     return null;
+  }
+
+  if (blockedByPlan) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="container max-w-lg py-8">
+          <Link href="/dashboard" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-8 transition-colors">
+            <ArrowLeft className="w-4 h-4" />
+            Voltar
+          </Link>
+          <div className="bg-card rounded-xl p-8 card-elevated text-center">
+            <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
+              <Lock className="w-7 h-7 text-muted-foreground" />
+            </div>
+            <h1 className="font-display text-xl font-bold text-foreground mb-2">Limite do plano {PLAN_LABELS[planId]}</h1>
+            <p className="text-sm text-muted-foreground mb-6">
+              O plano grátis inclui <strong>1 campanha</strong>. Para criar outra, assine o Básico.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2 justify-center">
+              <Button asChild>
+                <Link href="/dashboard">Ir ao painel</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -136,6 +204,22 @@ export default function NewCampaign() {
 
         <h1 className="font-display text-2xl font-bold text-foreground mb-2">Nova Campanha</h1>
         <p className="text-sm text-muted-foreground mb-8">Configure sua raspadinha premiada.</p>
+
+        {isFreePlan && (
+          <div className="rounded-xl border border-border bg-muted/40 p-4 mb-6 text-sm text-muted-foreground">
+            <p className="font-medium text-foreground">Plano Grátis</p>
+            <ul className="list-disc pl-4 mt-2 space-y-1.5">
+              <li>
+                Validade da campanha: <strong className="text-foreground">7 dias</strong> (fixo — não é possível alterar).
+              </li>
+              <li>
+                Limite de <strong className="text-foreground">{PLAN_LIMITS.free} raspadinhas por mês</strong> no total da
+                conta (todas as campanhas somadas). Esse limite vem do plano e{" "}
+                <strong className="text-foreground">não pode ser escolhido por campanha</strong>.
+              </li>
+            </ul>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
@@ -154,8 +238,29 @@ export default function NewCampaign() {
               <Input id="min" type="number" min="0" step="0.01" value={minPurchase} onChange={(e) => setMinPurchase(e.target.value)} className="mt-1.5" />
             </div>
             <div>
-              <Label htmlFor="days">Validade (dias)</Label>
-              <Input id="days" type="number" min="1" value={validityDays} onChange={(e) => setValidityDays(e.target.value)} className="mt-1.5" />
+              <Label htmlFor={isFreePlan ? undefined : "days"}>Validade (dias)</Label>
+              {isFreePlan ? (
+                <>
+                  <Input
+                    id="days"
+                    type="number"
+                    value={7}
+                    disabled
+                    className="mt-1.5 bg-muted"
+                    aria-readonly
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Fixo em 7 dias no plano Grátis.</p>
+                </>
+              ) : (
+                <Input
+                  id="days"
+                  type="number"
+                  min="1"
+                  value={validityDays}
+                  onChange={(e) => setValidityDays(e.target.value)}
+                  className="mt-1.5"
+                />
+              )}
             </div>
           </div>
 

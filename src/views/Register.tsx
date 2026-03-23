@@ -1,13 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
-import { Star, ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
+import { Logo } from "@/components/Logo";
 import { toast } from "sonner";
 
 export default function Register() {
@@ -16,6 +19,12 @@ export default function Register() {
   const [businessName, setBusinessName] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+
+  useEffect(() => {
+    if (authLoading || !user) return;
+    router.replace("/dashboard");
+  }, [user, authLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,19 +33,36 @@ export default function Register() {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
-      email,
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim(),
       password,
-      options: { emailRedirectTo: window.location.origin, data: { business_name: businessName } },
+      options: {
+        emailRedirectTo: `${window.location.origin}/login`,
+        data: { business_name: businessName },
+      },
     });
     setLoading(false);
     if (error) {
       toast.error(error.message);
-    } else {
-      toast.success("Conta criada! Verifique seu e-mail para confirmar.");
-      router.push("/dashboard");
+      return;
     }
+    // Com "Confirmar e-mail" ativo no Supabase, session vem null até o usuário clicar no link.
+    if (!data.session) {
+      toast.success("Enviamos um link para seu e-mail. Confirme o cadastro e depois faça login.");
+      router.push("/login");
+      return;
+    }
+    toast.success("Conta criada!");
+    router.push("/dashboard");
   };
+
+  if (authLoading || user) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="animate-pulse text-muted-foreground text-sm">Carregando...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -45,11 +71,8 @@ export default function Register() {
           <ArrowLeft className="w-4 h-4" />
           Voltar
         </Link>
-        <div className="flex items-center gap-2 mb-8">
-          <div className="w-8 h-8 rounded-lg bg-gradient-hero flex items-center justify-center">
-            <Star className="w-4 h-4 text-primary-foreground" />
-          </div>
-          <span className="font-display text-xl font-bold text-foreground">RaspaZap</span>
+        <div className="mb-8 font-display">
+          <Logo />
         </div>
         <h1 className="font-display text-2xl font-bold text-foreground mb-2">Crie sua conta</h1>
         <p className="text-sm text-muted-foreground mb-8">Comece grátis com 50 raspadinhas.</p>
@@ -65,7 +88,15 @@ export default function Register() {
           </div>
           <div>
             <Label htmlFor="password">Senha</Label>
-            <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mínimo 6 caracteres" required className="mt-1.5" />
+            <PasswordInput
+              id="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Mínimo 6 caracteres"
+              required
+              autoComplete="new-password"
+              className="mt-1.5"
+            />
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? "Criando conta..." : "Criar conta grátis"}
