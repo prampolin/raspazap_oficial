@@ -115,6 +115,23 @@ export default function ScratchCard() {
       return;
     }
 
+    void (async () => {
+      try {
+        const res = await fetch("/api/scratch/notify-winner", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ validation_code: code }),
+        });
+        if (res.status === 502) {
+          toast.message(
+            "Não foi possível enviar o aviso por WhatsApp agora. Anote seu código de validação.",
+          );
+        }
+      } catch {
+        /* rede: participação já está salva */
+      }
+    })();
+
     setWonPrize(prize);
     setValidationCode(code);
     setStep("scratch");

@@ -9,8 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { GoogleGIcon } from "@/components/icons/GoogleGIcon";
+import { profileNeedsCompletion } from "@/lib/auth/profile-completion";
 import { toast } from "sonner";
 
 export default function Register() {
@@ -18,12 +20,29 @@ export default function Register() {
   const [password, setPassword] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
 
   useEffect(() => {
     if (authLoading || !user) return;
-    router.replace("/dashboard");
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("business_name")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (cancelled) return;
+      if (profileNeedsCompletion(data)) {
+        router.replace("/completar-cadastro");
+      } else {
+        router.replace("/dashboard");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [user, authLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -52,8 +71,31 @@ export default function Register() {
       router.push("/login");
       return;
     }
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({ business_name: businessName.trim() })
+      .eq("user_id", data.session.user.id);
+    if (profileError) {
+      toast.error(profileError.message);
+      return;
+    }
     toast.success("Conta criada!");
     router.push("/dashboard");
+  };
+
+  const signInWithGoogle = async () => {
+    setGoogleLoading(true);
+    const next = "/dashboard";
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
+      },
+    });
+    setGoogleLoading(false);
+    if (error) {
+      toast.error(error.message);
+    }
   };
 
   if (authLoading || user) {
@@ -65,17 +107,40 @@ export default function Register() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        <Link href="/" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-8 transition-colors">
-          <ArrowLeft className="w-4 h-4" />
-          Voltar
-        </Link>
-        <div className="mb-8 font-display">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4 bg-emerald-500">
+      <div className="w-full max-w-lg bg-white p-12 rounded-2xl">
+        <div className="mb-8 font-display grid grid-cols-3 items-center">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            Voltar
+          </Link>
           <Logo />
         </div>
         <h1 className="font-display text-2xl font-bold text-foreground mb-2">Crie sua conta</h1>
-        <p className="text-sm text-muted-foreground mb-8">Comece grátis com 50 raspadinhas.</p>
+        <p className="text-sm text-muted-foreground mb-6">Comece grátis com 50 raspadinhas.</p>
+
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full"
+          disabled={googleLoading}
+          onClick={signInWithGoogle}
+        >
+          <GoogleGIcon className="size-4" />
+          {googleLoading ? "Redirecionando..." : "Continuar com Google"}
+        </Button>
+
+        <div className="relative my-6">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t border-border" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-white px-2 text-muted-foreground">ou com e-mail</span>
+          </div>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

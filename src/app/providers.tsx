@@ -5,6 +5,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/useAuth";
+import { IdleSessionTimeout } from "@/components/IdleSessionTimeout";
 import { LegalAcceptanceGate } from "@/components/LegalAcceptanceGate";
 import { useState, type ReactNode } from "react";
 
@@ -15,6 +16,7 @@ export function Providers({ children }: { children: ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
+          <IdleSessionTimeout />
           <Toaster />
           <Sonner />
           <LegalAcceptanceGate>{children}</LegalAcceptanceGate>

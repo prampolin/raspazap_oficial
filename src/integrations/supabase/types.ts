@@ -155,6 +155,7 @@ export type Database = {
           redeemed: boolean
           scratched_at: string
           validation_code: string
+          whatsapp_notification_sent_at: string | null
         }
         Insert: {
           campaign_id: string
@@ -165,6 +166,7 @@ export type Database = {
           redeemed?: boolean
           scratched_at?: string
           validation_code: string
+          whatsapp_notification_sent_at?: string | null
         }
         Update: {
           campaign_id?: string
@@ -175,6 +177,7 @@ export type Database = {
           redeemed?: boolean
           scratched_at?: string
           validation_code?: string
+          whatsapp_notification_sent_at?: string | null
         }
         Relationships: [
           {
