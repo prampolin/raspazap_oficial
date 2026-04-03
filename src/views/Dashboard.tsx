@@ -22,6 +22,12 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -731,80 +737,53 @@ export default function Dashboard() {
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center justify-end gap-2 ml-4">
-                    {c.is_active ? (
-                      <AlertDialog>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                disabled={togglingCampaignId === c.id}
-                                className="h-9 w-9 shrink-0 rounded-lg bg-red-300 text-red-950 shadow-sm hover:bg-red-400/90 focus-visible:ring-red-500/40"
-                                aria-label="Desativar campanha"
-                              >
-                                <PowerOff className="h-4 w-4" strokeWidth={2.25} />
-                              </Button>
-                            </AlertDialogTrigger>
-                          </TooltipTrigger>
-                          <TooltipContent side="top" className="max-w-xs">
-                            <p>
-                              Desativar: o link público deixa de aceitar novas raspadinhas. Você pode reativar quando
-                              quiser.
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Desativar campanha?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              O link público deixará de aceitar novas raspadinhas. Você pode reativar depois.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction
-                              type="button"
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              onClick={() => void toggleCampaignActive(c, false)}
-                            >
-                              Desativar
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    ) : (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9 shrink-0 rounded-lg"
+                          aria-label="Mais ações da campanha"
+                        >
+                          <span className="inline-flex h-5 w-5 items-center justify-center text-muted-foreground">
+                            ···
+                          </span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            void router.push(`/dashboard/campaign/${c.id}`);
+                          }}
+                        >
+                          Editar campanha
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            copyLink(c.slug);
+                          }}
+                        >
+                          Copiar link
+                        </DropdownMenuItem>
+                        {c.is_active ? (
+                          <DropdownMenuItem
+                            className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                            disabled={togglingCampaignId === c.id}
+                            onClick={() => void toggleCampaignActive(c, false)}
+                          >
+                            Desativar campanha
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem
                             disabled={togglingCampaignId === c.id}
                             onClick={() => void toggleCampaignActive(c, true)}
-                            className="h-9 w-9 shrink-0 rounded-lg bg-emerald-300 text-emerald-950 shadow-sm hover:bg-emerald-400/90 focus-visible:ring-emerald-500/40"
-                            aria-label="Reativar campanha"
                           >
-                            <Power className="h-4 w-4" strokeWidth={2.25} />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="max-w-xs">
-                          <p>
-                            Reativar: o link público volta a aceitar novas raspadinhas.
-                          </p>
-                        </TooltipContent>
-                      </Tooltip>
-                    )}
-                    <Button variant="outline" size="sm" onClick={() => copyLink(c.slug)}>
-                      <Copy className="w-3.5 h-3.5 mr-1" />
-                      Link
-                    </Button>
-                    <Button variant="ghost" size="sm" asChild>
-                      <Link href={`/dashboard/campaign/${c.id}`}>
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </Link>
-                    </Button>
+                            Reativar campanha
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               </div>

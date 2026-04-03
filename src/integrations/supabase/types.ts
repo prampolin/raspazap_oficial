@@ -20,6 +20,10 @@ export type Database = {
           description: string | null
           id: string
           is_active: boolean
+          max_scratch_entries: number | null
+          phone_lock_enabled: boolean
+          phone_lock_number: string | null
+          phone_lock_whitelist: string[] | null
           min_purchase: number
           slug: string
           title: string
@@ -32,6 +36,10 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean
+          max_scratch_entries?: number | null
+          phone_lock_enabled?: boolean
+          phone_lock_number?: string | null
+          phone_lock_whitelist?: string[] | null
           min_purchase?: number
           slug: string
           title: string
@@ -44,6 +52,10 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean
+          max_scratch_entries?: number | null
+          phone_lock_enabled?: boolean
+          phone_lock_number?: string | null
+          phone_lock_whitelist?: string[] | null
           min_purchase?: number
           slug?: string
           title?: string
@@ -208,6 +220,10 @@ export type Database = {
       mark_scratch_entry_redeemed: {
         Args: { p_validation_code: string }
         Returns: Json
+      }
+      delete_campaign_if_expired: {
+        Args: { p_campaign_id: string; p_user_id: string }
+        Returns: void
       }
     }
     Enums: {

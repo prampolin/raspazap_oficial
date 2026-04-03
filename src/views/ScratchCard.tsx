@@ -41,6 +41,7 @@ export default function ScratchCard() {
   const [wonPrize, setWonPrize] = useState<Prize | null>(null);
   const [validationCode, setValidationCode] = useState("");
   const [scratched, setScratched] = useState(false);
+  const [noPrizeByPhoneLock, setNoPrizeByPhoneLock] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawing = useRef(false);
@@ -84,16 +85,78 @@ export default function ScratchCard() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!campaign || prizes.length === 0) return;
-
-    const prize = pickPrize(prizes);
-    const code = Math.random().toString(36).slice(2, 8).toUpperCase();
+    if (!campaign) {
+      toast.error("Campanha indisponível no momento. Tente novamente mais tarde.");
+      return;
+    }
+    if (prizes.length === 0) {
+      toast.error("Nenhum prêmio configurado para esta campanha.");
+      return;
+    }
 
     const whatsappDigits = whatsapp.replace(/\D/g, "");
     if (whatsappDigits.length < 10 || whatsappDigits.length > 11) {
       toast.error("Informe um WhatsApp válido com DDD (10 ou 11 dígitos).");
       return;
     }
+
+    // Trava: se já ganhou nesta campanha e ainda não resgatou, não pode raspar de novo
+    const { data: existingEntries, error: existingError } = await supabase
+      .from("scratch_entries")
+      .select("redeemed")
+      .eq("campaign_id", campaign.id)
+      .eq("customer_whatsapp", whatsappDigits);
+
+    if (existingError) {
+      toast.error("Não foi possível verificar sua participação anterior. Tente novamente.");
+      return;
+    }
+
+    if (existingEntries && existingEntries.some((e) => !e.redeemed)) {
+      toast.error("Você já tem um prêmio pendente nesta campanha. Use o código que recebeu.");
+      return;
+    }
+
+    const legacyLockNumber = campaign.phone_lock_number ?? "";
+    const legacyDigits = legacyLockNumber.replace(/\D/g, "");
+    const whitelist = (campaign as Tables<"campaigns">).phone_lock_whitelist;
+    const allowedDigits = Array.isArray(whitelist) && whitelist.length > 0
+      ? whitelist.map((d) => d.replace(/\D/g, "")).filter(Boolean)
+      : legacyDigits
+        ? [legacyDigits]
+        : [];
+
+    if (campaign.phone_lock_enabled && allowedDigits.length > 0) {
+      const isAllowed = allowedDigits.includes(whatsappDigits);
+      if (!isAllowed) {
+        // Não gera prêmio nem código; deixa a pessoa raspar para ver que não ganhou
+        setNoPrizeByPhoneLock(true);
+        setWonPrize(null);
+        setValidationCode("");
+        setStep("scratch");
+        return;
+      }
+    }
+
+    // Respeita o limite de raspadinhas configurado na campanha (max_scratch_entries)
+    if (campaign.max_scratch_entries != null) {
+      const { count } = await supabase
+        .from("scratch_entries")
+        .select("*", { count: "exact", head: true })
+        .eq("campaign_id", campaign.id);
+
+      if ((count ?? 0) >= campaign.max_scratch_entries) {
+        // Deixa o usuário raspar, mas sem prêmio
+        setNoPrizeByPhoneLock(true);
+        setWonPrize(null);
+        setValidationCode("");
+        setStep("scratch");
+        return;
+      }
+    }
+
+    const prize = pickPrize(prizes);
+    const code = Math.random().toString(36).slice(2, 8).toUpperCase();
     const { error } = await supabase.from("scratch_entries").insert({
       campaign_id: campaign.id,
       prize_id: prize.id,
@@ -108,6 +171,14 @@ export default function ScratchCard() {
         toast.error(
           "Este estabelecimento atingiu o limite mensal de raspadinhas do plano.",
         );
+        return;
+      }
+      if (msg.includes("Limite de raspadinhas desta campanha")) {
+        // Limite por campanha estourado: mostra mensagem de "não ganhou" sem prêmio
+        setNoPrizeByPhoneLock(true);
+        setWonPrize(null);
+        setValidationCode("");
+        setStep("result");
         return;
       }
       toast.error("Não foi possível registrar sua participação. Tente novamente.");
@@ -132,6 +203,7 @@ export default function ScratchCard() {
       }
     })();
 
+    setNoPrizeByPhoneLock(false);
     setWonPrize(prize);
     setValidationCode(code);
     setStep("scratch");
@@ -302,23 +374,39 @@ export default function ScratchCard() {
         {step === "scratch" && (
           <div className="animate-fade-up text-center">
             <h2 className="font-display text-xl font-bold text-foreground mb-2">
-              Sua raspadinha está pronta!
+              {noPrizeByPhoneLock ? "Raspadinha liberada" : "Sua raspadinha está pronta!"}
             </h2>
             <p className="text-sm text-muted-foreground mb-6">
-              Raspe a área dourada para revelar seu prêmio.
+              {noPrizeByPhoneLock
+                ? "Raspe a área dourada para descobrir se você ganhou."
+                : "Raspe a área dourada para revelar seu prêmio."}
             </p>
 
             <div
               className="relative rounded-2xl overflow-hidden scratch-shadow mx-auto"
               style={{ width: 280, height: 180 }}
             >
-              {/* Prize behind */}
+              {/* Prize / no-prize behind */}
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-card">
-                <PartyPopper className="w-8 h-8 text-accent mb-2" />
-                <p className="font-display text-lg font-bold text-foreground">
-                  {wonPrize?.name}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">Parabéns!</p>
+                {noPrizeByPhoneLock ? (
+                  <>
+                    <Gift className="w-8 h-8 text-muted-foreground mb-2" />
+                    <p className="font-display text-lg font-bold text-foreground">
+                      Mais sorte da próxima vez
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Esta tentativa não gerou nenhum prêmio.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <PartyPopper className="w-8 h-8 text-accent mb-2" />
+                    <p className="font-display text-lg font-bold text-foreground">
+                      {wonPrize?.name}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">Parabéns!</p>
+                  </>
+                )}
               </div>
               {/* Scratch layer */}
               <canvas
@@ -333,7 +421,7 @@ export default function ScratchCard() {
           </div>
         )}
 
-        {step === "result" && wonPrize && (
+        {step === "result" && !noPrizeByPhoneLock && wonPrize && (
           <div className="animate-reveal text-center">
             <div className="w-16 h-16 rounded-full bg-gradient-gold flex items-center justify-center mx-auto mb-4">
               <PartyPopper className="w-8 h-8 text-secondary-foreground" />
@@ -395,8 +483,21 @@ export default function ScratchCard() {
             </div>
 
             <p className="text-xs text-muted-foreground">
-              Apresente este código no momento da compra para resgatar seu
-              prêmio.
+              Apresente este código no momento da compra para resgatar seu prêmio.
+            </p>
+          </div>
+        )}
+
+        {step === "result" && noPrizeByPhoneLock && (
+          <div className="animate-reveal text-center">
+            <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+              <Gift className="w-8 h-8 text-muted-foreground" />
+            </div>
+            <h2 className="font-display text-2xl font-bold text-foreground mb-2">
+              Mais sorte da próxima vez
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Você raspou a campanha, mas não ganhou nenhum prêmio nesta tentativa.
             </p>
           </div>
         )}

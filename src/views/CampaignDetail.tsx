@@ -17,6 +17,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { ArrowLeft, Copy, Users, Gift, QrCode, Power } from "lucide-react";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
@@ -32,6 +34,11 @@ export default function CampaignDetail() {
   const [entries, setEntries] = useState<ScratchEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [toggleLoading, setToggleLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [phoneLockEnabled, setPhoneLockEnabled] = useState(false);
+  const [phoneLockInput, setPhoneLockInput] = useState("");
+  const [phoneLockList, setPhoneLockList] = useState<string[]>([]);
+  const [savingPhoneLock, setSavingPhoneLock] = useState(false);
 
   useEffect(() => {
     if (!id || !user) return;
@@ -50,12 +57,27 @@ export default function CampaignDetail() {
       setEntries(
         entriesRaw.map((e) => ({ ...e, prize_name: prizeMap[e.prize_id] || "—" }))
       );
+      if (campRes.data) {
+        setPhoneLockEnabled(Boolean(campRes.data.phone_lock_enabled));
+        const whitelist = (campRes.data as Tables<"campaigns">).phone_lock_whitelist;
+        if (Array.isArray(whitelist) && whitelist.length > 0) {
+          setPhoneLockList(whitelist.map((d) => d.replace(/\D/g, "")).filter(Boolean));
+        } else if (campRes.data.phone_lock_number) {
+          setPhoneLockList([campRes.data.phone_lock_number.replace(/\D/g, "")]);
+        }
+      }
       setLoading(false);
     };
     load();
   }, [id, user]);
 
   const link = campaign ? `${window.location.origin}/c/${campaign.slug}` : "";
+
+  const isExpired =
+    campaign &&
+    new Date(campaign.created_at).getTime() +
+      campaign.validity_days * 24 * 60 * 60 * 1000 <
+      Date.now();
 
   const copyLink = () => {
     navigator.clipboard.writeText(link);
@@ -80,6 +102,98 @@ export default function CampaignDetail() {
     if (data) {
       setCampaign(data);
       toast.success(next ? "Campanha reativada." : "Campanha desativada. O link público deixou de funcionar.");
+    }
+  };
+
+  const deleteCampaign = async () => {
+    if (!campaign || !user) return;
+    setDeleteLoading(true);
+    const { error } = await supabase.rpc("delete_campaign_if_expired", {
+      p_campaign_id: campaign.id,
+      p_user_id: user.id,
+    });
+    setDeleteLoading(false);
+    if (error) {
+      const msg = error.message ?? "";
+      if (msg.includes("CAMPAIGN_NOT_EXPIRED")) {
+        toast.error("Você só pode excluir a campanha depois que o prazo de todas as raspadinhas tiver expirado.");
+      } else {
+        toast.error(msg || "Não foi possível excluir a campanha.");
+      }
+      return;
+    }
+    toast.success("Campanha excluída com sucesso.");
+    window.location.href = "/dashboard";
+  };
+
+  const maskBrazilPhone = (input: string): string => {
+    const d = input.replace(/\D/g, "").slice(0, 11);
+    if (d.length === 0) return "";
+    const ddd = d.slice(0, 2);
+    if (d.length <= 2) return `(${ddd}`;
+    const rest = d.slice(2);
+    if (rest[0] === "9") {
+      if (rest.length <= 5) return `(${ddd}) ${rest}`;
+      return `(${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`;
+    }
+    if (rest.length <= 4) return `(${ddd}) ${rest}`;
+    return `(${ddd}) ${rest.slice(0, 4)}-${rest.slice(4)}`;
+  };
+
+  const addPhoneLockNumber = () => {
+    const digits = phoneLockInput.replace(/\D/g, "");
+    if (!digits) return;
+    if (digits.length < 10 || digits.length > 11) {
+      toast.error("Número autorizado deve ter DDD (10 ou 11 dígitos).");
+      return;
+    }
+    if (phoneLockList.includes(digits)) {
+      toast.message("Esse número já está na lista.");
+      return;
+    }
+    setPhoneLockList((prev) => [...prev, digits]);
+    setPhoneLockInput("");
+  };
+
+  const removePhoneLockNumber = (digits: string) => {
+    setPhoneLockList((prev) => prev.filter((d) => d !== digits));
+  };
+
+  const savePhoneLock = async () => {
+    if (!campaign || !user) return;
+    let list = phoneLockList;
+    if (phoneLockEnabled && phoneLockInput) {
+      const digits = phoneLockInput.replace(/\D/g, "");
+      if (!digits || digits.length < 10 || digits.length > 11) {
+        toast.error("Número autorizado deve ter DDD (10 ou 11 dígitos).");
+        return;
+      }
+      if (!list.includes(digits)) {
+        list = [...list, digits];
+      }
+      setPhoneLockList(list);
+      setPhoneLockInput("");
+    }
+    setSavingPhoneLock(true);
+    const { data, error } = await supabase
+      .from("campaigns")
+      .update({
+        phone_lock_enabled: phoneLockEnabled,
+        phone_lock_number: null,
+        phone_lock_whitelist: phoneLockEnabled && list.length > 0 ? list : null,
+      })
+      .eq("id", campaign.id)
+      .eq("user_id", user.id)
+      .select()
+      .single();
+    setSavingPhoneLock(false);
+    if (error) {
+      toast.error(error.message ?? "Não foi possível atualizar a trava por número.");
+      return;
+    }
+    if (data) {
+      setCampaign(data);
+      toast.success("Trava por número atualizada com sucesso.");
     }
   };
 
@@ -150,6 +264,40 @@ export default function CampaignDetail() {
                 Reativar campanha
               </Button>
             )}
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="border-destructive text-destructive hover:bg-destructive/10"
+                  disabled={deleteLoading}
+                >
+                  Excluir campanha
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Excluir campanha?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    A campanha e todas as raspadinhas associadas serão removidas permanentemente. Só é permitido excluir
+                    se não houver raspadinhas pendentes (raspadas, mas ainda não resgatadas) ou se o prazo da campanha
+                    já tiver expirado.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    type="button"
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={() => void deleteCampaign()}
+                    disabled={deleteLoading}
+                  >
+                    {deleteLoading ? "Excluindo..." : "Tem certeza que deseja excluir esta campanha?"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
 
@@ -169,6 +317,80 @@ export default function CampaignDetail() {
             <code className="flex-1 text-sm bg-muted px-3 py-2 rounded-lg truncate text-foreground">{link}</code>
             <Button variant="outline" size="sm" onClick={copyLink}>
               <Copy className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Phone lock */}
+        <div className="bg-card rounded-xl p-5 card-elevated mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <h2 className="font-display font-semibold text-foreground">Trava por número de telefone</h2>
+          </div>
+          <div className="space-y-3">
+            <label className="flex items-center gap-2 text-sm text-foreground">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-border accent-emerald-500"
+                checked={phoneLockEnabled}
+                onChange={(e) => setPhoneLockEnabled(e.target.checked)}
+              />
+              Limitar ganhadores com número de telefone
+            </label>
+            {phoneLockEnabled && (
+              <div className="space-y-2">
+                <div>
+                  <Label htmlFor="campaign-phone-lock">WhatsApp autorizado a ganhar prêmios</Label>
+                  <div className="flex gap-2 mt-1.5">
+                    <Input
+                      id="campaign-phone-lock"
+                      type="tel"
+                      inputMode="numeric"
+                      maxLength={15}
+                      value={phoneLockInput}
+                      onChange={(e) => setPhoneLockInput(maskBrazilPhone(e.target.value))}
+                      placeholder="(11) 99999-9999"
+                    />
+                    <Button type="button" variant="outline" onClick={addPhoneLockNumber}>
+                      Adicionar
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Você pode cadastrar mais de um número autorizado.
+                  </p>
+                </div>
+                {phoneLockList.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Números autorizados:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {phoneLockList.map((digits) => (
+                        <span
+                          key={digits}
+                          className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-xs text-foreground"
+                        >
+                          {maskBrazilPhone(digits)}
+                          <button
+                            type="button"
+                            className="text-muted-foreground hover:text-foreground"
+                            onClick={() => removePhoneLockNumber(digits)}
+                            aria-label="Remover número"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            <Button
+              type="button"
+              size="sm"
+              className="mt-1"
+              onClick={() => void savePhoneLock()}
+              disabled={savingPhoneLock}
+            >
+              {savingPhoneLock ? "Salvando..." : "Salvar trava por número"}
             </Button>
           </div>
         </div>
